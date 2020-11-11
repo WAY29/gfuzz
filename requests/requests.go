@@ -1,13 +1,14 @@
 package requests
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/levigross/grequests"
 	"github.com/pkg/errors"
 )
+
+var session = grequests.NewSession(nil)
 
 // * split each string of stringArray by sep
 func parse(stringArray []string, sep string) map[string]string {
@@ -83,6 +84,6 @@ func Requests(_type string, url string, args map[string][]string) (*grequests.Re
 	}
 
 	// ! test
-	fmt.Println(resp.String())
+	// fmt.Println(resp.String())
 	return resp, rerr
 }
