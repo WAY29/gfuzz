@@ -86,6 +86,9 @@ Example:
 		if strings.Contains(auth, "FUZZ") {
 			check = true
 		}
+		if strings.Contains(requestsMethod, "FUZZ") {
+			check = true
+		}
 		if strings.Contains(expression, "FUZZ") {
 			check = true
 		}
@@ -117,6 +120,12 @@ Example:
 
 		// from auth
 		utils.CalcplaceHoldersNum(&placeHoldersNum, auth)
+
+		// from requests method
+		utils.CalcplaceHoldersNum(&placeHoldersNum, requestsMethod)
+
+		// from filters expression
+		utils.CalcplaceHoldersNum(&placeHoldersNum, expression)
 
 		// from data
 		for _, s := range totalData {
@@ -359,10 +368,11 @@ ID           C.Time       Response   Lines    Word     Chars       Payload      
 			// plus id
 			id++
 			// ? replace placeholders to payload
-			substring := "FUZZ"
+			placeholder := "FUZZ"
 			// clone from headers and cookies
 			finalUrl := url
 			finalAuth := auth
+			finalRequestMethod := requestsMethod
 			finalExpression := expression
 			finalData := clone.Clone(totalData).([]string)
 			finalHeaders := clone.Clone(totalHeaders).([]string)
@@ -370,40 +380,45 @@ ID           C.Time       Response   Lines    Word     Chars       Payload      
 
 			for index, payload := range payloadsData {
 				if index > 0 {
-					substring = "FUZ" + strconv.Itoa(index+1) + "Z"
+					placeholder = "FUZ" + strconv.Itoa(index+1) + "Z"
 				}
 				// for url
-				if strings.Contains(url, substring) {
-					utils.ReplacePlaceHolderToPayload(index, &finalUrl, payload.(string), false)
+				if strings.Contains(url, placeholder) {
+					utils.ReplacePlaceHolderToPayload(placeholder, &finalUrl, payload.(string), false)
 				}
 
 				// for auth
-				if strings.Contains(auth, substring) {
-					utils.ReplacePlaceHolderToPayload(index, &finalAuth, payload.(string), false)
+				if strings.Contains(auth, placeholder) {
+					utils.ReplacePlaceHolderToPayload(placeholder, &finalAuth, payload.(string), false)
+				}
+
+				// for auth
+				if strings.Contains(requestsMethod, placeholder) {
+					utils.ReplacePlaceHolderToPayload(placeholder, &finalRequestMethod, payload.(string), false)
 				}
 
 				// for expression
-				if strings.Contains(expression, substring) {
-					utils.ReplacePlaceHolderToPayload(index, &finalExpression, payload.(string), true)
+				if strings.Contains(expression, placeholder) {
+					utils.ReplacePlaceHolderToPayload(placeholder, &finalExpression, payload.(string), true)
 				}
 
 				// for data
 				for i, s := range totalData {
-					if strings.Contains(s, substring) {
-						utils.ReplacePlaceHolderToPayloadFromArray(index, finalData, i, payload.(string))
+					if strings.Contains(s, placeholder) {
+						utils.ReplacePlaceHolderToPayloadFromArray(placeholder, finalData, i, payload.(string))
 					}
 				}
 
 				// for hedaers
 				for i, s := range totalHeaders {
-					if strings.Contains(s, substring) {
-						utils.ReplacePlaceHolderToPayloadFromArray(index, finalHeaders, i, payload.(string))
+					if strings.Contains(s, placeholder) {
+						utils.ReplacePlaceHolderToPayloadFromArray(placeholder, finalHeaders, i, payload.(string))
 					}
 				}
 				// for cookies
 				for i, s := range totalCookies {
-					if strings.Contains(s, substring) {
-						utils.ReplacePlaceHolderToPayloadFromArray(index, finalCookies, i, payload.(string))
+					if strings.Contains(s, placeholder) {
+						utils.ReplacePlaceHolderToPayloadFromArray(placeholder, finalCookies, i, payload.(string))
 					}
 				}
 
@@ -421,7 +436,7 @@ ID           C.Time       Response   Lines    Word     Chars       Payload      
 				if strings.Contains(finalAuth, ":") {
 					auth = strings.Split(finalAuth, ":")
 				}
-				resp, err := requests.Requests(requestsMethod, finalUrl, map[string][]string{"Headers": finalHeaders, "Cookies": finalCookies, "Data": finalData, "Auth": auth})
+				resp, err := requests.Requests(finalRequestMethod, finalUrl, map[string][]string{"Headers": finalHeaders, "Cookies": finalCookies, "Data": finalData, "Auth": auth})
 				if err != nil {
 					utils.PrintErrorWithoutBlank("requests " + finalUrl + " error")
 				}

@@ -66,21 +66,38 @@ func Requests(_type string, url string, args map[string][]string) (*grequests.Re
 	}
 
 	// ? requests
-
-	switch strings.ToUpper(_type) {
-	case "GET":
-		resp, rerr = grequests.Get(url, ro)
-	case "POST":
-		resp, rerr = grequests.Post(url, ro)
-	case "HEAD":
-		resp, rerr = grequests.Head(url, ro)
-	case "PUT":
-		resp, rerr = grequests.Put(url, ro)
-	case "DELETE":
-		resp, rerr = grequests.Delete(url, ro)
-	case "OPTIONS":
-		resp, rerr = grequests.Options(url, ro)
-	default:
+	if true {
+		switch strings.ToUpper(_type) {
+		case "GET":
+			resp, rerr = grequests.Get(url, ro)
+		case "POST":
+			resp, rerr = grequests.Post(url, ro)
+		case "HEAD":
+			resp, rerr = grequests.Head(url, ro)
+		case "PUT":
+			resp, rerr = grequests.Put(url, ro)
+		case "DELETE":
+			resp, rerr = grequests.Delete(url, ro)
+		case "OPTIONS":
+			resp, rerr = grequests.Options(url, ro)
+		default:
+		}
+	} else {
+		switch strings.ToUpper(_type) {
+		case "GET":
+			resp, rerr = session.Get(url, ro)
+		case "POST":
+			resp, rerr = session.Post(url, ro)
+		case "HEAD":
+			resp, rerr = session.Head(url, ro)
+		case "PUT":
+			resp, rerr = session.Put(url, ro)
+		case "DELETE":
+			resp, rerr = session.Delete(url, ro)
+		case "OPTIONS":
+			resp, rerr = session.Options(url, ro)
+		default:
+		}
 	}
 
 	// ! test

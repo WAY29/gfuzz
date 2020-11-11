@@ -93,31 +93,21 @@ func CalcplaceHoldersNum(num *int, s string) {
 	}
 }
 
-func ReplacePlaceHolderToPayload(id int, s *string, payload string, isExpression bool) {
+func ReplacePlaceHolderToPayload(placeholder string, s *string, payload string, isExpression bool) {
 	if isExpression {
 		_, err := strconv.Atoi(payload)
 		if err != nil {
 			payload = "'" + payload + "'"
 		}
 	}
-	if id == 0 {
-		*s = strings.ReplaceAll(*s, "FUZZ", payload)
-	} else {
-		*s = strings.ReplaceAll(*s, "FUZ"+strconv.Itoa(id+1)+"Z", payload)
-	}
-
+	*s = strings.ReplaceAll(*s, placeholder, payload)
 }
 
-func ReplacePlaceHolderToPayloadFromArray(id int, stringArray []string, arrayIndex int, payload string) {
+func ReplacePlaceHolderToPayloadFromArray(placeholder string, stringArray []string, arrayIndex int, payload string) {
 	if len(stringArray) < 0 {
 		return
 	}
-	if id == 0 {
-		stringArray[arrayIndex] = strings.ReplaceAll(stringArray[arrayIndex], "FUZZ", payload)
-	} else {
-		stringArray[arrayIndex] = strings.ReplaceAll(stringArray[arrayIndex], "FUZ"+strconv.Itoa(id+1)+"Z", payload)
-	}
-
+	stringArray[arrayIndex] = strings.ReplaceAll(stringArray[arrayIndex], placeholder, payload)
 }
 
 func ProductStringWithStrings(sets ...[]interface{}) chan interface{} {
