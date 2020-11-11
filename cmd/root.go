@@ -26,7 +26,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var versionInfo string = "gfuzz v1.1"
+var versionInfo string = "gfuzz v1.3"
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -40,25 +40,48 @@ Example:
 	gfuzz -u "http://httpbin.org/post?a=FUZZ" -d "b=FUZ2Z" -m product -r 0-9 -r a-b # total 10*2=20 requests`,
 	Version: versionInfo,
 	Run: func(cmd *cobra.Command, args []string) {
+		// ? set vars
 		id := 0
 		filterRequestsNum := 0
 		errorRequestsNum := 0
+		var logFile *os.File
+		// ? close logFile if set output
+		defer func() {
+			r := recover()
+			if r != nil {
+				utils.PrintError(r.(string))
+			}
+			if logFile != nil {
+				logFile.Close()
+			}
+		}()
 		// ? calculate time
 		startTime := time.Now()
 		// ? show version
 		// ? get params
 		url, _ := cmd.Flags().GetString("url")
+		isUseSession, _ := cmd.Flags().GetBool("session")
 		timeout, _ := cmd.Flags().GetInt("timeout")
 		mode, _ := cmd.Flags().GetString("mode")
+		outputFile, _ := cmd.Flags().GetString("file")
 		threadsNum, _ := cmd.Flags().GetInt("thread")
 		totalPayloads, _ := cmd.Flags().GetStringArray("payload")
 		totalHeaders, _ := cmd.Flags().GetStringArray("header")
 		totalCookies, _ := cmd.Flags().GetStringArray("cookie")
 		totalData, _ := cmd.Flags().GetStringArray("data")
 		auth, _ := cmd.Flags().GetString("auth")
-		showVerbose, _ := cmd.Flags().GetBool("verbose")
 		requestsMethod, _ := cmd.Flags().GetString("method")
+		isShowVerbose, _ := cmd.Flags().GetBool("verbose")
 
+		// ? set multi writers if output file
+		if len(outputFile) > 0 {
+			var err error
+			logFile, err = os.OpenFile(outputFile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0666)
+			if err != nil {
+				panic(err)
+			}
+			utils.SetWriter(logFile)
+		}
 		// ? get filters
 		filterAliasStrings := []string{"sc", "sh", "sw", "sl", "hc", "hh", "hw", "hl"}
 		filtersMap := make(map[string]string, len(filterAliasStrings))
@@ -246,14 +269,15 @@ Example:
 			utils.PrintSuccress("Generate products finish")
 			productChannel = utils.ProductStringWithStrings(tempPayloadsArrays...)
 		}
+
 		// ? print fuzz tips
-		if !showVerbose {
-			fmt.Println(`
+		if !isShowVerbose {
+			utils.Println(`
 ===================================================================
 ID           Response   Lines    Word     Chars       Payload
 ===================================================================`)
 		} else {
-			fmt.Println(`
+			utils.Println(`
 ===================================================================================================================
 ID           C.Time       Response   Lines    Word     Chars       Payload      Md5Hash
 ===================================================================================================================`)
@@ -369,62 +393,23 @@ ID           C.Time       Response   Lines    Word     Chars       Payload      
 			id++
 			// ? replace placeholders to payload
 			placeholder := "FUZZ"
-			// clone from headers and cookies
-			finalUrl := url
-			finalAuth := auth
-			finalRequestMethod := requestsMethod
-			finalExpression := expression
-			finalData := clone.Clone(totalData).([]string)
-			finalHeaders := clone.Clone(totalHeaders).([]string)
-			finalCookies := clone.Clone(totalCookies).([]string)
-
+			finalPayloadsData := make(map[string]interface{}, lenOfPayloads*2)
 			for index, payload := range payloadsData {
 				if index > 0 {
 					placeholder = "FUZ" + strconv.Itoa(index+1) + "Z"
 				}
-				// for url
-				if strings.Contains(url, placeholder) {
-					utils.ReplacePlaceHolderToPayload(placeholder, &finalUrl, payload.(string), false)
-				}
-
-				// for auth
-				if strings.Contains(auth, placeholder) {
-					utils.ReplacePlaceHolderToPayload(placeholder, &finalAuth, payload.(string), false)
-				}
-
-				// for auth
-				if strings.Contains(requestsMethod, placeholder) {
-					utils.ReplacePlaceHolderToPayload(placeholder, &finalRequestMethod, payload.(string), false)
-				}
-
-				// for expression
-				if strings.Contains(expression, placeholder) {
-					utils.ReplacePlaceHolderToPayload(placeholder, &finalExpression, payload.(string), true)
-				}
-
-				// for data
-				for i, s := range totalData {
-					if strings.Contains(s, placeholder) {
-						utils.ReplacePlaceHolderToPayloadFromArray(placeholder, finalData, i, payload.(string))
-					}
-				}
-
-				// for hedaers
-				for i, s := range totalHeaders {
-					if strings.Contains(s, placeholder) {
-						utils.ReplacePlaceHolderToPayloadFromArray(placeholder, finalHeaders, i, payload.(string))
-					}
-				}
-				// for cookies
-				for i, s := range totalCookies {
-					if strings.Contains(s, placeholder) {
-						utils.ReplacePlaceHolderToPayloadFromArray(placeholder, finalCookies, i, payload.(string))
-					}
-				}
-
+				finalPayloadsData[placeholder] = payload
 			}
+			finalUrl := utils.Format(url, finalPayloadsData)
+			finalAuth := utils.Format(auth, finalPayloadsData)
+			finalRequestMethod := utils.Format(requestsMethod, finalPayloadsData)
+			finalExpression := utils.Format(expression, finalPayloadsData)
+			finalData := utils.FormatStringArray(clone.Clone(totalData).([]string), finalPayloadsData)
+			finalHeaders := utils.FormatStringArray(clone.Clone(totalHeaders).([]string), finalPayloadsData)
+			finalCookies := utils.FormatStringArray(clone.Clone(totalCookies).([]string), finalPayloadsData)
+
 			// ? test
-			//fmt.Printf("Test %#v %#v %#v %#v %#v %#v\n", url, finalUrl, totalData, finalData, finalCookies, finalHeaders)
+			// fmt.Printf("Test %#v %#v %#v %#v %#v %#v\n", url, finalUrl, totalData, finalData, finalCookies, finalHeaders)
 
 			// ? start to fuzz
 			go func(id int, payloadsData []interface{}) {
@@ -436,9 +421,10 @@ ID           C.Time       Response   Lines    Word     Chars       Payload      
 				if strings.Contains(finalAuth, ":") {
 					auth = strings.Split(finalAuth, ":")
 				}
-				resp, err := requests.Requests(finalRequestMethod, finalUrl, map[string][]string{"Headers": finalHeaders, "Cookies": finalCookies, "Data": finalData, "Auth": auth})
+				resp, err := requests.Requests(finalRequestMethod, finalUrl, map[string][]string{"Headers": finalHeaders, "Cookies": finalCookies, "Data": finalData, "Auth": auth}, isUseSession)
 				if err != nil {
 					utils.PrintErrorWithoutBlank("requests " + finalUrl + " error")
+					return
 				}
 				// ?get response data
 				text := resp.String()
@@ -491,7 +477,7 @@ ID           C.Time       Response   Lines    Word     Chars       Payload      
 				}
 				elapsedOfRequest := time.Since(startRequestTime)
 				if isPass {
-					if !showVerbose {
+					if !isShowVerbose {
 						utils.PrintResponse(id, resp.StatusCode, lenOflines, lenOfwords, lenOftext, payloadsData...)
 					} else {
 						utils.PrintResponseVerbose(id, elapsedOfRequest, resp.StatusCode, lenOflines, lenOfwords, lenOftext, md5HashOftext, payloadsData...)
@@ -504,11 +490,11 @@ ID           C.Time       Response   Lines    Word     Chars       Payload      
 		}
 		wg.Wait()
 		elapsed := time.Since(startTime)
-		fmt.Println()
-		fmt.Printf("%s %.3fs\n", utils.Pcyan("Total time:         "), elapsed.Seconds())
-		fmt.Println(utils.Pcyan("Processed Requests: "), id)
-		fmt.Println(utils.Pcyan("Filtered Requests:  "), filterRequestsNum)
-		fmt.Println(utils.Pcyan("Error Requests:     "), errorRequestsNum)
+		utils.Println()
+		utils.Printf("%s %.3fs\n", utils.Pcyan("Total time:         "), elapsed.Seconds())
+		utils.Println(utils.Pcyan("Processed Requests: "), id)
+		utils.Println(utils.Pcyan("Filtered Requests:  "), filterRequestsNum)
+		utils.Println(utils.Pcyan("Error Requests:     "), errorRequestsNum)
 	},
 }
 
@@ -563,7 +549,9 @@ func init() {
 	rootCmd.Flags().String("hw", "", "Hide responses with the specified words.")
 	rootCmd.Flags().String("sl", "", "Show responses with the specified lines.")
 	rootCmd.Flags().String("hl", "", "Hide responses with the specified lines.")
+	rootCmd.Flags().StringP("file", "f", "", "Store results in the output file using the specified printer")
 	rootCmd.Flags().Bool("verbose", false, "Show verbose of fuzz results.")
 	rootCmd.Flags().IntP("thread", "t", 16, "Threads of fuzz.")
 	rootCmd.Flags().Int("timeout", 300, "Timeout second for fuzz.")
+	rootCmd.Flags().BoolP("session", "S", false, "Whether use session for fuzz.")
 }

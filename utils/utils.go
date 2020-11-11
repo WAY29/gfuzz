@@ -6,75 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
-
-	"github.com/fatih/color"
 )
-
-var Pyellow = color.New(color.FgYellow).SprintFunc()
-var Pred = color.New(color.FgRed).SprintFunc()
-var Pcyan = color.New(color.FgCyan).SprintFunc()
-var Pgreen = color.New(color.FgGreen).SprintFunc()
-
-func PrintError(s string) {
-	fmt.Printf("\n[%s] %s\n", Pred("-"), Pred(s))
-}
-
-func PrintWarn(s string) {
-	fmt.Printf("\n[%s] %s\n", Pyellow("!"), Pyellow(s))
-}
-
-func PrintInfo(s string) {
-	fmt.Printf("\n[%s] %s\n", Pcyan("#"), Pcyan(s))
-}
-
-func PrintSuccress(s string) {
-	fmt.Printf("\n[%s] %s\n", Pgreen("+"), Pgreen(s))
-}
-
-func PrintErrorWithoutBlank(s string) {
-	fmt.Printf("[%s] %s\n", Pred("-"), Pred(s))
-}
-
-func PrintRequestsError(id int, err error) {
-	fmt.Printf("%s: %s\n", Pred(fmt.Sprintf("%09d", id)), Pred("Error "+err.Error()))
-}
-
-func PrintResponse(id int, responseCode int, linesNum int, wordsNum int, CharsNum int, payloads ...interface{}) {
-	code := "000"
-	if responseCode < 200 {
-		code = Pcyan(strconv.Itoa(responseCode))
-	} else if responseCode < 300 {
-		code = Pgreen(strconv.Itoa(responseCode))
-	} else if responseCode < 400 {
-		code = Pyellow(strconv.Itoa(responseCode))
-	} else {
-		code = Pred(strconv.Itoa(responseCode))
-	}
-	fmt.Printf("%09d:   %-17s   %-3d L    %-3d W    %-3d Ch      \" ", id, code, linesNum, wordsNum, CharsNum)
-	for _, payload := range payloads {
-		fmt.Printf("%v ", payload)
-	}
-	fmt.Printf("\"\n")
-}
-
-func PrintResponseVerbose(id int, ctime time.Duration, responseCode int, linesNum int, wordsNum int, CharsNum int, md5hash string, payloads ...interface{}) {
-	code := "000"
-	if responseCode < 200 {
-		code = Pcyan(strconv.Itoa(responseCode))
-	} else if responseCode < 300 {
-		code = Pgreen(strconv.Itoa(responseCode))
-	} else if responseCode < 400 {
-		code = Pyellow(strconv.Itoa(responseCode))
-	} else {
-		code = Pred(strconv.Itoa(responseCode))
-	}
-	fmt.Printf("%09d:   %-.3fs       %-17s   %-3d L    %-3d W    %-3d Ch      \" ", id, ctime.Seconds(), code, linesNum, wordsNum, CharsNum)
-	for _, payload := range payloads {
-		fmt.Printf("%v ", payload)
-	}
-	fmt.Printf(`"        ` + md5hash + "\n")
-}
 
 func CalcplaceHoldersNum(num *int, s string) {
 	regc, _ := regexp.Compile("FUZ(\\d*)Z")
@@ -91,23 +23,6 @@ func CalcplaceHoldersNum(num *int, s string) {
 	if tempNum > *num {
 		*num = tempNum
 	}
-}
-
-func ReplacePlaceHolderToPayload(placeholder string, s *string, payload string, isExpression bool) {
-	if isExpression {
-		_, err := strconv.Atoi(payload)
-		if err != nil {
-			payload = "'" + payload + "'"
-		}
-	}
-	*s = strings.ReplaceAll(*s, placeholder, payload)
-}
-
-func ReplacePlaceHolderToPayloadFromArray(placeholder string, stringArray []string, arrayIndex int, payload string) {
-	if len(stringArray) < 0 {
-		return
-	}
-	stringArray[arrayIndex] = strings.ReplaceAll(stringArray[arrayIndex], placeholder, payload)
 }
 
 func ProductStringWithStrings(sets ...[]interface{}) chan interface{} {
@@ -164,4 +79,44 @@ func EncodeForPayload(encoderArray []string, payload interface{}) interface{} {
 		}
 	}
 	return payload
+}
+
+// ? python-like format functions
+func Format(format string, p map[string]interface{}) string {
+	args, i := make([]string, len(p)*2), 0
+	for k, v := range p {
+		args[i] = k
+		args[i+1] = fmt.Sprint(v)
+		i += 2
+	}
+	return strings.NewReplacer(args...).Replace(format)
+}
+
+// ? python-like format functions
+func FormatStringArray(stringArray []string, p map[string]interface{}) []string {
+	args, i := make([]string, len(p)*2), 0
+	for k, v := range p {
+		args[i] = k
+		args[i+1] = fmt.Sprint(v)
+		i += 2
+	}
+	for i, s := range stringArray {
+		stringArray[i] = strings.NewReplacer(args...).Replace(s)
+	}
+	return stringArray
+}
+
+// ? color StatusCode
+func ColorStatusCode(responseCode int) string {
+	code := fmt.Sprintf("%03s", strconv.Itoa(responseCode))
+	if 100 < responseCode && responseCode < 200 {
+		code = Pcyan(code)
+	} else if responseCode < 300 {
+		code = Pgreen(code)
+	} else if responseCode < 400 {
+		code = Pyellow(code)
+	} else {
+		code = Pred(code)
+	}
+	return code
 }
