@@ -1,6 +1,6 @@
 /*
 TODO features:
-other requests methods
+* y other requests methods
 output file
 * y verbose
 * y auth
@@ -26,8 +26,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var cfgFile string
-var versionInfo string = "gfuzz v0.2"
+var versionInfo string = "gfuzz v1.1"
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -58,6 +57,7 @@ Example:
 		totalData, _ := cmd.Flags().GetStringArray("data")
 		auth, _ := cmd.Flags().GetString("auth")
 		showVerbose, _ := cmd.Flags().GetBool("verbose")
+		requestsMethod, _ := cmd.Flags().GetString("method")
 
 		// ? get filters
 		filterAliasStrings := []string{"sc", "sh", "sw", "sl", "hc", "hh", "hw", "hl"}
@@ -421,12 +421,12 @@ ID           C.Time       Response   Lines    Word     Chars       Payload      
 				if strings.Contains(finalAuth, ":") {
 					auth = strings.Split(finalAuth, ":")
 				}
-				resp, err := requests.Requests("GET", finalUrl, map[string][]string{"Headers": finalHeaders, "Cookies": finalCookies, "Data": finalData, "Auth": auth})
+				resp, err := requests.Requests(requestsMethod, finalUrl, map[string][]string{"Headers": finalHeaders, "Cookies": finalCookies, "Data": finalData, "Auth": auth})
 				if err != nil {
 					utils.PrintErrorWithoutBlank("requests " + finalUrl + " error")
 				}
 				// ?get response data
-				text := resp.Text()
+				text := resp.String()
 				md5HashOftext := encoders.GetEncoder("md5").Encode(text).(string)
 				lenOftext := len(text)
 				lines := strings.Split(text, "\n")
@@ -437,8 +437,8 @@ ID           C.Time       Response   Lines    Word     Chars       Payload      
 				// ? filter response
 				if expression != "" {
 					parameters := make(map[string]interface{}, 32)
-					parameters["c"] = resp.R.StatusCode
-					parameters["code"] = resp.R.StatusCode
+					parameters["c"] = resp.StatusCode
+					parameters["code"] = resp.StatusCode
 					parameters["h"] = lenOftext
 					parameters["chars"] = lenOftext
 					parameters["l"] = lenOflines
@@ -448,21 +448,21 @@ ID           C.Time       Response   Lines    Word     Chars       Payload      
 					parameters["id"] = id
 					parameters["md5"] = md5HashOftext
 					// ? --------------------------------
-					parameters["url"] = resp.R.Request.URL.String()
-					parameters["method"] = resp.R.Request.Method
-					parameters["scheme"] = resp.R.Request.URL.Scheme
-					parameters["host"] = resp.R.Request.URL.Host
-					parameters["content"] = resp.Text()
-					for _, cookie := range resp.R.Request.Cookies() {
+					parameters["url"] = resp.RawResponse.Request.URL.String()
+					parameters["method"] = resp.RawResponse.Request.Method
+					parameters["scheme"] = resp.RawResponse.Request.URL.Scheme
+					parameters["host"] = resp.RawResponse.Request.URL.Host
+					parameters["content"] = text
+					for _, cookie := range resp.RawResponse.Request.Cookies() {
 						parameters["req_cookies_"+cookie.Name] = cookie.Value
 					}
-					for _, cookie := range resp.R.Cookies() {
+					for _, cookie := range resp.RawResponse.Cookies() {
 						parameters["res_cookies_"+cookie.Name] = cookie.Value
 					}
-					for k, v := range resp.R.Request.Header {
+					for k, v := range resp.RawResponse.Request.Header {
 						parameters["req_headers_"+k] = strings.Join(v, " ")
 					}
-					for k, v := range resp.R.Header {
+					for k, v := range resp.RawResponse.Header {
 						parameters["res_headers_"+k] = strings.Join(v, " ")
 					}
 					// ! test
@@ -477,9 +477,9 @@ ID           C.Time       Response   Lines    Word     Chars       Payload      
 				elapsedOfRequest := time.Since(startRequestTime)
 				if isPass {
 					if !showVerbose {
-						utils.PrintResponse(id, resp.R.StatusCode, lenOflines, lenOfwords, lenOftext, payloadsData...)
+						utils.PrintResponse(id, resp.StatusCode, lenOflines, lenOfwords, lenOftext, payloadsData...)
 					} else {
-						utils.PrintResponseVerbose(id, elapsedOfRequest, resp.R.StatusCode, lenOflines, lenOfwords, lenOftext, md5HashOftext, payloadsData...)
+						utils.PrintResponseVerbose(id, elapsedOfRequest, resp.StatusCode, lenOflines, lenOfwords, lenOftext, md5HashOftext, payloadsData...)
 					}
 				} else {
 					filterRequestsNum++
@@ -533,7 +533,8 @@ func init() {
 	rootCmd.Flags().StringArrayP("header", "H", []string{}, `Use header (ex:"Cookie:id=1312321&user=FUZZ"). Repeat option for various headers.`)
 	rootCmd.Flags().StringArrayP("cookie", "b", []string{}, "Specify a cookie for the requests. Repeat option for various cookies.")
 	rootCmd.Flags().String("auth", "", `in format "user:pass" or "FUZZ:FUZ2Z"`)
-	rootCmd.Flags().StringP("mode", "m", "zip", "Specify an iterator(zip, chain, product) for combining payloads (zip by default).")
+	rootCmd.Flags().StringP("method", "X", "GET", "Specify an HTTP method for the request, ie. HEAD or FUZZ, Support GET/POST/HEAD/OPTIONS/PUT/DELETE.")
+	rootCmd.Flags().StringP("mode", "m", "zip", "Specify an iterator(zip, chain, product) for combining payloads.")
 	rootCmd.Flags().StringArrayP("payload", "z", []string{}, "Specify a payload for each FUZZ keyword used in the form of name[,parameter][,encoder].")
 	rootCmd.Flags().StringP("wordlist", "w", "", "The same as -z file, .")
 	rootCmd.Flags().StringP("range", "r", "", "The same as -z range, .")

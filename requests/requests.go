@@ -1,9 +1,11 @@
 package requests
 
 import (
+	"fmt"
+	"net/http"
 	"strings"
 
-	"github.com/asmcos/requests"
+	"github.com/levigross/grequests"
 	"github.com/pkg/errors"
 )
 
@@ -21,47 +23,66 @@ func parse(stringArray []string, sep string) map[string]string {
 	return res
 }
 
-func Requests(_type string, url string, args map[string][]string) (*requests.Response, error) {
-	Nargs := make([]interface{}, 0)
-	resp := &requests.Response{}
+func Requests(_type string, url string, args map[string][]string) (*grequests.Response, error) {
+	_type = strings.ToUpper(_type)
+	resp := &grequests.Response{}
 	var rerr error = errors.New("Unsupport type for reuqests")
-	data := requests.Datas{}
-	headers := requests.Header{}
+
+	ro := &grequests.RequestOptions{}
 	// ? parse
 	// parse data
 	if r, ok := args["Data"]; ok && len(r) > 0 {
 		// if data exists, force send post requests
-		_type = "POST"
-		data = requests.Datas(parse(r, "="))
-		Nargs = append(Nargs, data)
-
+		if _type == "GET" {
+			_type = "POST"
+		}
+		ro.Params = parse(r, "=")
 	}
 	// parse headers
 	if r, ok := args["Headers"]; ok {
-		headers = requests.Header(parse(r, ":"))
+		ro.Headers = parse(r, ":")
 	}
 	// parse cookies
 	if r, ok := args["Cookies"]; ok && len(r) > 0 {
-		headers["Cookies"] = strings.Join(r, "&")
+		cookies := []*http.Cookie{}
+		for _, cookieString := range r {
+			cookie := http.Cookie{}
+			cookieArray := strings.SplitN(cookieString, "=", 2)
+			cookie.Name = cookieArray[0]
+			if len(cookieArray) > 1 {
+				cookie.Value = cookieArray[1]
+			} else {
+				cookie.Value = ""
+			}
+			cookies = append(cookies, &cookie)
+		}
+
+		ro.Cookies = cookies
 	}
-	// parse cookies
+	// parse auth
 	if r, ok := args["Auth"]; ok && len(r) > 0 {
-		auth := requests.Auth(r)
-		Nargs = append(Nargs, auth)
-	}
-	if len(headers) > 0 {
-		Nargs = append(Nargs, headers)
+		ro.Auth = r
 	}
 
 	// ? requests
-	_type = strings.ToUpper(_type)
-	if _type == "GET" {
-		resp, rerr = requests.Get(url, Nargs...)
+
+	switch strings.ToUpper(_type) {
+	case "GET":
+		resp, rerr = grequests.Get(url, ro)
+	case "POST":
+		resp, rerr = grequests.Post(url, ro)
+	case "HEAD":
+		resp, rerr = grequests.Head(url, ro)
+	case "PUT":
+		resp, rerr = grequests.Put(url, ro)
+	case "DELETE":
+		resp, rerr = grequests.Delete(url, ro)
+	case "OPTIONS":
+		resp, rerr = grequests.Options(url, ro)
+	default:
 	}
-	if _type == "POST" {
-		resp, rerr = requests.Post(url, Nargs...)
-	}
+
 	// ! test
-	// fmt.Println(resp.Text())
+	fmt.Println(resp.String())
 	return resp, rerr
 }

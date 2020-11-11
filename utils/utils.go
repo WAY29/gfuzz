@@ -103,7 +103,7 @@ func ReplacePlaceHolderToPayload(id int, s *string, payload string, isExpression
 	if id == 0 {
 		*s = strings.ReplaceAll(*s, "FUZZ", payload)
 	} else {
-		*s = strings.ReplaceAll(*s, "FUZ"+string(id+1)+"Z", payload)
+		*s = strings.ReplaceAll(*s, "FUZ"+strconv.Itoa(id+1)+"Z", payload)
 	}
 
 }
