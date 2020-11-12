@@ -3,6 +3,7 @@ package requests
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/levigross/grequests"
 	"github.com/pkg/errors"
@@ -22,16 +23,33 @@ func parse(stringArray []string, sep string) map[string]string {
 	return res
 }
 
-func Requests(_type string, url string, args map[string][]string, isUseSession bool) (*grequests.Response, error) {
-
+func Requests(_type string, url string, reqArgs map[string][]string, oArgs map[string]interface{}) (*grequests.Response, error) {
+	isUseSession := false
 	_type = strings.ToUpper(_type)
 	resp := &grequests.Response{}
 	var rerr error = errors.New("Unsupport type for reuqests")
-
 	ro := &grequests.RequestOptions{}
-	// ? parse
+	ro.RedirectLimit = 0
+	// ? parse oArgs
+	if r, ok := oArgs["UseSession"]; ok {
+		isUseSession = r.(bool)
+	}
+	if r, ok := oArgs["Follow"]; ok && !r.(bool) {
+		ro.HTTPClient = &http.Client{
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
+	}
+	if r, ok := oArgs["ReqTimeout"]; ok {
+		ro.RequestTimeout = time.Duration(r.(int)) * time.Second
+	}
+	if r, ok := oArgs["connDelayTimeout"]; ok {
+		ro.TLSHandshakeTimeout = time.Duration(r.(int)) * time.Second
+	}
+	// ? parse reqArgs
 	// parse data
-	if r, ok := args["Data"]; ok && len(r) > 0 {
+	if r, ok := reqArgs["Data"]; ok && len(r) > 0 {
 		// if data exists, force send post requests
 		if _type == "GET" {
 			_type = "POST"
@@ -39,11 +57,11 @@ func Requests(_type string, url string, args map[string][]string, isUseSession b
 		ro.Data = parse(r, "=")
 	}
 	// parse headers
-	if r, ok := args["Headers"]; ok {
+	if r, ok := reqArgs["Headers"]; ok {
 		ro.Headers = parse(r, ":")
 	}
 	// parse cookies
-	if r, ok := args["Cookies"]; ok && len(r) > 0 {
+	if r, ok := reqArgs["Cookies"]; ok && len(r) > 0 {
 		cookies := []*http.Cookie{}
 		for _, cookieString := range r {
 			cookie := http.Cookie{}
@@ -60,7 +78,7 @@ func Requests(_type string, url string, args map[string][]string, isUseSession b
 		ro.Cookies = cookies
 	}
 	// parse auth
-	if r, ok := args["Auth"]; ok && len(r) > 0 {
+	if r, ok := reqArgs["Auth"]; ok && len(r) > 0 {
 		ro.Auth = r
 	}
 	// ? requests
@@ -96,9 +114,9 @@ func Requests(_type string, url string, args map[string][]string, isUseSession b
 		case "OPTIONS":
 			resp, rerr = grequests.Options(url, ro)
 		default:
+
 		}
 	}
-
 	// ! test
 	// fmt.Println(resp.String())
 	return resp, rerr

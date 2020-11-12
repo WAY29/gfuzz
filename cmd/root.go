@@ -26,7 +26,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var versionInfo string = "gfuzz v1.3"
+var versionInfo string = "gfuzz v1.4"
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -61,7 +61,10 @@ Example:
 		// ? get params
 		url, _ := cmd.Flags().GetString("url")
 		isUseSession, _ := cmd.Flags().GetBool("session")
+		isFollow, _ := cmd.Flags().GetBool("follow")
 		timeout, _ := cmd.Flags().GetInt("timeout")
+		reqDelayTimeout, _ := cmd.Flags().GetInt("req_delay")
+		connDelayTimeout, _ := cmd.Flags().GetInt("conn_delay")
 		mode, _ := cmd.Flags().GetString("mode")
 		outputFile, _ := cmd.Flags().GetString("file")
 		threadsNum, _ := cmd.Flags().GetInt("thread")
@@ -193,13 +196,13 @@ Example:
 		for i, z := range totalPayloads {
 			stringList := strings.Split(z, ",")
 			lenOfstringList := len(stringList)
-			// ! Stop if payloads set (number) invalid
+			// ? add empty string if len of stringlist less than 2
 			if lenOfstringList < 2 {
-				utils.PrintError("Payloads set invalid")
-				return
+				lenOfstringList = 2
+				stringList = append(stringList, "")
 			}
 			var payload payloads.Payload
-			// payload := payloads.PayloadsBase{}
+
 			// ? generate payloads
 			payload = payloads.GetPayload(stringList[0])
 			if payload == nil {
@@ -271,17 +274,7 @@ Example:
 		}
 
 		// ? print fuzz tips
-		if !isShowVerbose {
-			utils.Println(`
-===================================================================
-ID           Response   Lines    Word     Chars       Payload
-===================================================================`)
-		} else {
-			utils.Println(`
-===================================================================================================================
-ID           C.Time       Response   Lines    Word     Chars       Payload      Md5Hash
-===================================================================================================================`)
-		}
+		utils.PrintTips(isShowVerbose)
 
 		for range tch.Channel() {
 			// * wait for total task
@@ -421,9 +414,15 @@ ID           C.Time       Response   Lines    Word     Chars       Payload      
 				if strings.Contains(finalAuth, ":") {
 					auth = strings.Split(finalAuth, ":")
 				}
-				resp, err := requests.Requests(finalRequestMethod, finalUrl, map[string][]string{"Headers": finalHeaders, "Cookies": finalCookies, "Data": finalData, "Auth": auth}, isUseSession)
+				resp, err := requests.Requests(finalRequestMethod, finalUrl, map[string][]string{"Headers": finalHeaders, "Cookies": finalCookies, "Data": finalData, "Auth": auth},
+					map[string]interface{}{"UseSession": isUseSession, "ReqTimeout": reqDelayTimeout, "ConnTimeout": connDelayTimeout, "Follow": isFollow})
 				if err != nil {
-					utils.PrintErrorWithoutBlank("requests " + finalUrl + " error")
+					if isShowVerbose {
+						utils.PrintErrorWithoutBlank("requests " + finalUrl + " error " + err.Error())
+					} else {
+						utils.PrintErrorWithoutBlank("requests " + finalUrl + " error")
+
+					}
 					return
 				}
 				// ?get response data
@@ -506,8 +505,6 @@ func Execute() {
 }
 
 func init() {
-	// cobra.OnInitialize(initConfig)
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gfuzz.yaml)")
 	// ? replace some alias flags to real flags
 	args := os.Args[1:]
 	lenOfArgs := len(args)
@@ -551,7 +548,10 @@ func init() {
 	rootCmd.Flags().String("hl", "", "Hide responses with the specified lines.")
 	rootCmd.Flags().StringP("file", "f", "", "Store results in the output file using the specified printer")
 	rootCmd.Flags().Bool("verbose", false, "Show verbose of fuzz results.")
+	rootCmd.Flags().BoolP("session", "S", false, "Whether use session for fuzz.")
+	rootCmd.Flags().BoolP("follow", "L", false, "Follow HTTP redirections.")
 	rootCmd.Flags().IntP("thread", "t", 16, "Threads of fuzz.")
 	rootCmd.Flags().Int("timeout", 300, "Timeout second for fuzz.")
-	rootCmd.Flags().BoolP("session", "S", false, "Whether use session for fuzz.")
+	rootCmd.Flags().Int("req_delay", 90, "Sets the maximum time in seconds the request is allowed to take (CURLOPT_TIMEOUT).")
+	rootCmd.Flags().Int("conn_delay", 90, "Sets the maximum time in seconds the connection phase to the server to take (CURLOPT_CONNECTTIMEOUT).")
 }

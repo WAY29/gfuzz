@@ -2,36 +2,29 @@ package payloads
 
 import (
 	"bufio"
-	"gfuzz/utils"
 	"os"
 )
 
 func init() {
-	AddPayload("file", &PayloadFile{})
-	AddPayloadInfo("file", "Returns each line from a file.")
+	AddPayload("stdin", &PayloadStdin{})
+	AddPayloadInfo("stdin", "Returns each line from stdin.")
 }
 
-type PayloadFile struct {
+type PayloadStdin struct {
 	channel chan interface{}
 }
 
 //
-func (p *PayloadFile) Channel() chan interface{} {
+func (p *PayloadStdin) Channel() chan interface{} {
 	return p.channel
 }
 
-func (p *PayloadFile) New(s ...interface{}) error {
+func (p *PayloadStdin) New(s ...interface{}) error {
 	p.channel = make(chan interface{})
 	ch := p.channel
-	f, err := os.Open(s[0].(string))
-	if err != nil {
-		utils.PrintError("No such file")
-		return err
-	}
-	br := bufio.NewReader(f)
+	br := bufio.NewReader(os.Stdin)
 	go func() {
 		defer func() {
-			f.Close()
 			close(ch)
 		}()
 		for {

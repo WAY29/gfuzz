@@ -5,6 +5,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,10 +24,8 @@ func SetWriter(f *os.File) {
 }
 
 func cleanColor(a []interface{}) []interface{} {
-	// a := make([]interface{}, len(a))
 	re, _ := regexp.Compile("\\[\\d+m")
 	for i, s := range a {
-		// fmt.Printf("test %#v\n", s)
 		str, ok := s.(string)
 		if ok {
 			a[i] = re.ReplaceAllString(str, "")
@@ -36,18 +35,24 @@ func cleanColor(a []interface{}) []interface{} {
 }
 
 func Println(a ...interface{}) {
-	printLock.Lock()
-	defer printLock.Unlock()
 	fmt.Println(a...)
-	fmt.Fprintln(logFile, cleanColor(a)...)
+	if logFile != nil {
+		fmt.Fprintln(logFile, cleanColor(a)...)
+	}
+
 }
 
 func Printf(format string, a ...interface{}) {
-	printLock.Lock()
-	defer printLock.Unlock()
-	// fmt.Printf("Test %s %#v\n", format, cleanColor(a))
 	fmt.Printf(format, a...)
-	fmt.Fprintf(logFile, format, cleanColor(a)...)
+	if logFile != nil {
+		fmt.Fprintf(logFile, format, cleanColor(a)...)
+	}
+}
+
+func Fprintf(format string, a ...interface{}) {
+	if logFile != nil {
+		fmt.Fprintf(logFile, format, cleanColor(a)...)
+	}
 }
 
 func PrintError(s string) {
@@ -78,35 +83,52 @@ func PrintResponse(id int, responseCode int, linesNum int, wordsNum int, CharsNu
 	printLock.Lock()
 	defer printLock.Unlock()
 	code := ColorStatusCode(responseCode)
-	fileFormat := "%09d:   %-8s   %-3d L    %-3d W    %-3d Ch      \" "
-	format := "%09d:   %-17s   %-3d L    %-3d W    %-3d Ch      \" "
-	a := []interface{}{id, code, linesNum, wordsNum, CharsNum}
-	fa := []interface{}{id, strconv.Itoa(responseCode), linesNum, wordsNum, CharsNum}
-	fmt.Printf(format, a...)
-	fmt.Fprintf(logFile, fileFormat, fa...)
+	fileFormat := `%09d:   %-8s   %-3d L    %-3d W    %-3d Ch      %-s`
+	format := `%09d:   %-17s   %-3d L    %-3d W    %-3d Ch      %-s`
+	payloadsString := `" `
 	for _, payload := range payloads {
-		fmt.Printf("%v ", payload)
-		fmt.Fprintf(logFile, "%v ", payload)
-
+		payloadsString += fmt.Sprintf("%v ", payload)
 	}
-	fmt.Printf(" \"\n")
-	fmt.Fprintf(logFile, " \"\n")
+	payloadsString += `"`
+	a := []interface{}{id, code, linesNum, wordsNum, CharsNum, payloadsString}
+	fa := []interface{}{id, strconv.Itoa(responseCode), linesNum, wordsNum, CharsNum, payloadsString}
+
+	fmt.Printf(format, a...)
+	fmt.Println()
+	Fprintf(fileFormat, fa...)
+	Fprintf("\n")
 }
 
 func PrintResponseVerbose(id int, ctime time.Duration, responseCode int, linesNum int, wordsNum int, CharsNum int, md5hash string, payloads ...interface{}) {
 	printLock.Lock()
 	defer printLock.Unlock()
 	code := ColorStatusCode(responseCode)
-	fileFormat := "%09d:   %-.3fs       %-8s   %-3d L    %-3d W    %-3d Ch      \" "
-	format := "%09d:   %-.3fs       %-17s   %-3d L    %-3d W    %-3d Ch      \" "
-	a := []interface{}{id, ctime.Seconds(), code, linesNum, wordsNum, CharsNum}
-	fa := []interface{}{id, ctime.Seconds(), strconv.Itoa(responseCode), linesNum, wordsNum, CharsNum}
-	fmt.Printf(format, a...)
-	fmt.Fprintf(logFile, fileFormat, fa...)
+	fileFormat := `%09d:   %-.3fs       %-8s   %-3d L    %-3d W    %-3d Ch      %-30s         %s`
+	format := `%09d:   %-.3fs       %-17s   %-3d L    %-3d W    %-3d Ch      %-30s         %s`
+	payloadsString := `" `
 	for _, payload := range payloads {
-		fmt.Printf("%v ", payload)
-		fmt.Fprintf(logFile, "%v ", payload)
+		payloadsString += fmt.Sprintf("%v ", payload)
 	}
-	fmt.Printf(` "        ` + md5hash + "\n")
-	fmt.Fprintf(logFile, ` "        `+md5hash+"\n")
+	payloadsString += `"`
+	a := []interface{}{id, ctime.Seconds(), code, linesNum, wordsNum, CharsNum, payloadsString, md5hash}
+	fa := []interface{}{id, ctime.Seconds(), strconv.Itoa(responseCode), linesNum, wordsNum, CharsNum, payloadsString, md5hash}
+
+	fmt.Printf(format, a...)
+	fmt.Println()
+	Fprintf(fileFormat, fa...)
+	Fprintf("\n")
+}
+
+func PrintTips(isShowVerbose bool) {
+	if !isShowVerbose {
+		format := `%-10s   %-8s   %-5s    %-6s    %-6s     %-s`
+		tip := fmt.Sprintf(format, "ID", "Response", "Lines", "Words", "Chars", "Payload")
+		line := strings.Repeat("=", len(tip)+10)
+		Println(line + "\n" + tip + "\n" + line)
+	} else {
+		format := `%-10s   %-5s       %-8s   %-5s    %-6s    %-6s     %-30s         %s`
+		tip := fmt.Sprintf(format, "ID", "C.Time", "Response", "Lines", "Words", "Chars", "Payload", "Md5Hash")
+		line := strings.Repeat("=", len(tip)+28)
+		Println(line + "\n" + tip + "\n" + line)
+	}
 }

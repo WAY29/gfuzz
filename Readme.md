@@ -20,3 +20,9 @@
 - 添加参数-S/--session, 控制在请求时是否使用session
 - 添加参数-f/--file, 是否将结果输出到文件
 
+### V1.4
+- 优化输出逻辑
+- 添加payload:stdin, 从标准输入中获取payload
+- 添加payload:dirwalk, 从某个目录递归获取文件相对路径作为payload
+- 添加参数-req_delay, 控制请求超时时间
+- 添加参数-conn_delay, 控制连接超时时间
