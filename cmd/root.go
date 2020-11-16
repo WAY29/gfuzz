@@ -26,7 +26,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var versionInfo string = "gfuzz v1.4"
+var versionInfo string = "gfuzz v1.5"
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -66,16 +66,16 @@ Example:
 		reqDelayTimeout, _ := cmd.Flags().GetInt("req_delay")
 		connDelayTimeout, _ := cmd.Flags().GetInt("conn_delay")
 		mode, _ := cmd.Flags().GetString("mode")
-		outputFile, _ := cmd.Flags().GetString("file")
+		outputFile, _ := cmd.Flags().GetString("output")
 		threadsNum, _ := cmd.Flags().GetInt("thread")
 		totalPayloads, _ := cmd.Flags().GetStringArray("payload")
 		totalHeaders, _ := cmd.Flags().GetStringArray("header")
 		totalCookies, _ := cmd.Flags().GetStringArray("cookie")
 		totalData, _ := cmd.Flags().GetStringArray("data")
+		totalJson, _ := cmd.Flags().GetString("json")
 		auth, _ := cmd.Flags().GetString("auth")
 		requestsMethod, _ := cmd.Flags().GetString("method")
 		isShowVerbose, _ := cmd.Flags().GetBool("verbose")
-
 		// ? set multi writers if output file
 		if len(outputFile) > 0 {
 			var err error
@@ -85,8 +85,8 @@ Example:
 			}
 			utils.SetWriter(logFile)
 		}
-		// ? get filters
-		filterAliasStrings := []string{"sc", "sh", "sw", "sl", "hc", "hh", "hw", "hl"}
+		// ? get alias filters
+		filterAliasStrings := []string{"sc", "sh", "sw", "sl", "hc", "hh", "hw", "hl", "sx", "hx"}
 		filtersMap := make(map[string]string, len(filterAliasStrings))
 		expression, _ := cmd.Flags().GetString("filter")
 		for _, s := range filterAliasStrings {
@@ -396,6 +396,7 @@ Example:
 			finalUrl := utils.Format(url, finalPayloadsData)
 			finalAuth := utils.Format(auth, finalPayloadsData)
 			finalRequestMethod := utils.Format(requestsMethod, finalPayloadsData)
+
 			finalExpression := utils.Format(expression, finalPayloadsData)
 			finalData := utils.FormatStringArray(clone.Clone(totalData).([]string), finalPayloadsData)
 			finalHeaders := utils.FormatStringArray(clone.Clone(totalHeaders).([]string), finalPayloadsData)
@@ -415,14 +416,14 @@ Example:
 					auth = strings.Split(finalAuth, ":")
 				}
 				resp, err := requests.Requests(finalRequestMethod, finalUrl, map[string][]string{"Headers": finalHeaders, "Cookies": finalCookies, "Data": finalData, "Auth": auth},
-					map[string]interface{}{"UseSession": isUseSession, "ReqTimeout": reqDelayTimeout, "ConnTimeout": connDelayTimeout, "Follow": isFollow})
+					map[string]interface{}{"UseSession": isUseSession, "ReqTimeout": reqDelayTimeout, "ConnTimeout": connDelayTimeout, "Follow": isFollow, "Json": totalJson})
 				if err != nil {
 					if isShowVerbose {
 						utils.PrintErrorWithoutBlank("requests " + finalUrl + " error " + err.Error())
 					} else {
 						utils.PrintErrorWithoutBlank("requests " + finalUrl + " error")
-
 					}
+					errorRequestsNum++
 					return
 				}
 				// ?get response data
@@ -452,6 +453,7 @@ Example:
 					parameters["method"] = resp.RawResponse.Request.Method
 					parameters["scheme"] = resp.RawResponse.Request.URL.Scheme
 					parameters["host"] = resp.RawResponse.Request.URL.Host
+					parameters["x"] = text
 					parameters["content"] = text
 					for _, cookie := range resp.RawResponse.Request.Cookies() {
 						parameters["req_cookies_"+cookie.Name] = cookie.Value
@@ -528,6 +530,7 @@ func init() {
 	rootCmd.Flags().StringP("url", "u", "", "(required) Target URL.")
 	rootCmd.MarkFlagRequired("url")
 	rootCmd.Flags().StringArrayP("data", "d", []string{}, `Use post data (ex: "id=FUZZ&catalogue=1"). Repeat option for various data.`)
+	rootCmd.Flags().String("json", "", `Use json data post. If you use windows, Try to use single quotes instead of double quotes`)
 	rootCmd.Flags().StringArrayP("header", "H", []string{}, `Use header (ex:"Cookie:id=1312321&user=FUZZ"). Repeat option for various headers.`)
 	rootCmd.Flags().StringArrayP("cookie", "b", []string{}, "Specify a cookie for the requests. Repeat option for various cookies.")
 	rootCmd.Flags().String("auth", "", `in format "user:pass" or "FUZZ:FUZ2Z"`)
@@ -537,7 +540,7 @@ func init() {
 	rootCmd.Flags().StringP("wordlist", "w", "", "The same as -z file, .")
 	rootCmd.Flags().StringP("range", "r", "", "The same as -z range, .")
 	rootCmd.Flags().String("list", "", "The same as -z list, .")
-	rootCmd.Flags().String("filter", "", "Show/hide responses using the specified filter expression.")
+	rootCmd.Flags().StringP("filter", "f", "", "Show/hide responses using the specified filter expression.")
 	rootCmd.Flags().String("sc", "", "Show responses with the specified code.")
 	rootCmd.Flags().String("hc", "", "Hide responses with the specified code.")
 	rootCmd.Flags().String("sh", "", "Show responses with the specified chars.")
@@ -546,11 +549,13 @@ func init() {
 	rootCmd.Flags().String("hw", "", "Hide responses with the specified words.")
 	rootCmd.Flags().String("sl", "", "Show responses with the specified lines.")
 	rootCmd.Flags().String("hl", "", "Hide responses with the specified lines.")
-	rootCmd.Flags().StringP("file", "f", "", "Store results in the output file using the specified printer")
+	rootCmd.Flags().String("sx", "", "Show responses with the specified content.")
+	rootCmd.Flags().String("hx", "", "Hide responses with the specified content.")
+	rootCmd.Flags().StringP("output", "o", "", "Store results in the output file using the specified printer")
 	rootCmd.Flags().Bool("verbose", false, "Show verbose of fuzz results.")
 	rootCmd.Flags().BoolP("session", "S", false, "Whether use session for fuzz.")
 	rootCmd.Flags().BoolP("follow", "L", false, "Follow HTTP redirections.")
-	rootCmd.Flags().IntP("thread", "t", 16, "Threads of fuzz.")
+	rootCmd.Flags().IntP("thread", "t", 32, "Threads of fuzz.")
 	rootCmd.Flags().Int("timeout", 300, "Timeout second for fuzz.")
 	rootCmd.Flags().Int("req_delay", 90, "Sets the maximum time in seconds the request is allowed to take (CURLOPT_TIMEOUT).")
 	rootCmd.Flags().Int("conn_delay", 90, "Sets the maximum time in seconds the connection phase to the server to take (CURLOPT_CONNECTTIMEOUT).")

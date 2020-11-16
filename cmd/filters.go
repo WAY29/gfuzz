@@ -31,7 +31,7 @@ var filtersCmd = &cobra.Command{
 		fmt.Println("   method              HTTP request's verb")
 		fmt.Println("   scheme              HTTP request's scheme")
 		fmt.Println("   host                HTTP request's host")
-		fmt.Println("   content             HTTP response's content")
+		fmt.Println("   x|content           HTTP response's content")
 		fmt.Println("   req_cookies_<name>  HTTP request's cookie")
 		fmt.Println("   res_cookies_<name>  HTTP response's cookie")
 		fmt.Println("   req_headers_<name>  HTTP request's headers")

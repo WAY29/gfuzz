@@ -9,6 +9,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+var session = grequests.NewSession(nil)
+
 // * split each string of stringArray by sep
 func parse(stringArray []string, sep string) map[string]string {
 	res := map[string]string{}
@@ -34,6 +36,9 @@ func Requests(_type string, url string, reqArgs map[string][]string, oArgs map[s
 	if r, ok := oArgs["UseSession"]; ok {
 		isUseSession = r.(bool)
 	}
+	if r, ok := oArgs["UseSession"]; ok {
+		isUseSession = r.(bool)
+	}
 	if r, ok := oArgs["Follow"]; ok && !r.(bool) {
 		ro.HTTPClient = &http.Client{
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -48,14 +53,6 @@ func Requests(_type string, url string, reqArgs map[string][]string, oArgs map[s
 		ro.TLSHandshakeTimeout = time.Duration(r.(int)) * time.Second
 	}
 	// ? parse reqArgs
-	// parse data
-	if r, ok := reqArgs["Data"]; ok && len(r) > 0 {
-		// if data exists, force send post requests
-		if _type == "GET" {
-			_type = "POST"
-		}
-		ro.Data = parse(r, "=")
-	}
 	// parse headers
 	if r, ok := reqArgs["Headers"]; ok {
 		ro.Headers = parse(r, ":")
@@ -77,13 +74,30 @@ func Requests(_type string, url string, reqArgs map[string][]string, oArgs map[s
 
 		ro.Cookies = cookies
 	}
+	// parse data
+	if rawData, ok := reqArgs["Data"]; ok && len(rawData) > 0 {
+		// if data exists, force send post requests
+		if _type == "GET" {
+			_type = "POST"
+		}
+		ro.Data = parse(rawData, "=")
+
+	}
+	// parse json data
+	if jsonData, ok := oArgs["Json"]; ok && len(jsonData.(string)) > 0 {
+		if _type == "GET" {
+			_type = "POST"
+		}
+		ro.Headers["Content-Type"] = "application/json"
+		jsonData := strings.ReplaceAll(jsonData.(string), "'", "\"")
+		ro.JSON = jsonData
+	}
 	// parse auth
 	if r, ok := reqArgs["Auth"]; ok && len(r) > 0 {
 		ro.Auth = r
 	}
 	// ? requests
 	if isUseSession {
-		session := grequests.NewSession(nil)
 		switch strings.ToUpper(_type) {
 		case "GET":
 			resp, rerr = session.Get(url, ro)

@@ -2,7 +2,6 @@ package filters
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/Knetic/govaluate"
 )
@@ -39,7 +38,7 @@ func GetFilter(name string) Filter {
 	}
 }
 
-// * 
+// *
 func FinalFilter(expression string, parameters map[string]interface{}) (isPass bool, err error) {
 	var isPassI interface{}
 	err = errors.New("Filter invaild")
@@ -47,7 +46,6 @@ func FinalFilter(expression string, parameters map[string]interface{}) (isPass b
 	defer func() {
 		if r := recover(); r != nil {
 			isPass = false
-			fmt.Println("Test", r)
 			err = errors.New("Filter invaild")
 		}
 	}()
