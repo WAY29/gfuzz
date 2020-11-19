@@ -16,6 +16,7 @@ import (
 	"gfuzz/requests"
 	"gfuzz/safechannels"
 	"gfuzz/utils"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -76,6 +77,16 @@ Example:
 		auth, _ := cmd.Flags().GetString("auth")
 		requestsMethod, _ := cmd.Flags().GetString("method")
 		isShowVerbose, _ := cmd.Flags().GetBool("verbose")
+		// ? read json data if startwith @
+		if len(totalJson) > 0 && totalJson[0] == '@' {
+			jsonDataBytes, err := ioutil.ReadFile(totalJson[1:])
+			if err == nil {
+				totalJson = strings.ReplaceAll(string(jsonDataBytes), "\n", "")
+				totalJson = strings.ReplaceAll(totalJson, "\r", "")
+			} else {
+				totalJson = ""
+			}
+		}
 		// ? set multi writers if output file
 		if len(outputFile) > 0 {
 			var err error
@@ -118,6 +129,9 @@ Example:
 		if strings.Contains(expression, "FUZZ") {
 			check = true
 		}
+		if strings.Contains(totalJson, "FUZZ") {
+			check = true
+		}
 		for _, s := range totalData {
 			if strings.Contains(s, "FUZZ") {
 				check = true
@@ -152,6 +166,9 @@ Example:
 
 		// from filters expression
 		utils.CalcplaceHoldersNum(&placeHoldersNum, expression)
+
+		// from json
+		utils.CalcplaceHoldersNum(&placeHoldersNum, totalJson)
 
 		// from data
 		for _, s := range totalData {
@@ -237,8 +254,8 @@ Example:
 		wfp := safechannels.New()
 
 		// wait for total task
-		tch := safechannels.New()
-		tch.SafeSend(true)
+		// tch := safechannels.New()
+		stopFlag := false
 
 		// continue signal
 		continueSignal := safechannels.New()
@@ -276,10 +293,7 @@ Example:
 		// ? print fuzz tips
 		utils.PrintTips(isShowVerbose)
 
-		for range tch.Channel() {
-			// * wait for total task
-			tch.SafeSend(true)
-
+		for {
 			// ? get paylaods data from channels
 			go func(payloadsData []interface{}) {
 				var payload interface{}
@@ -290,10 +304,11 @@ Example:
 					for i := 0; i < placeHoldersNum; i++ {
 						select {
 						case payload, ok = <-channelsArray[i]:
+
 							if !ok || payload == nil { // read fromo channel error , maybe done
 								// ! stop if payload is null
-								tch.SafeClose()
-								wfp.SafeClose()
+								wfp.SafeSend(true)
+								stopFlag = true
 								return
 							}
 							// ? generate encoders
@@ -316,8 +331,8 @@ Example:
 						if !ok || payload == nil { // ! stop if all channel read
 							chIndex++
 							if chIndex >= lenOfPayloads {
-								tch.SafeClose()
-								wfp.SafeClose()
+								wfp.SafeSend(true)
+								stopFlag = true
 								return
 							} else {
 								continueSignal.SafeSend(true)
@@ -340,9 +355,10 @@ Example:
 					for i := 0; i < placeHoldersNum; i++ {
 						select {
 						case payload, ok = <-productChannel:
+
 							if !ok || payload == nil { // read fromo channel error , maybe done
-								tch.SafeClose()
-								wfp.SafeClose()
+								wfp.SafeSend(true)
+								stopFlag = true
 								return
 							}
 							// ? generate encoders
@@ -360,7 +376,6 @@ Example:
 				}
 
 			}(payloadsData)
-
 			// * wait for payloads data
 			select {
 			case <-wfp.Channel():
@@ -369,16 +384,20 @@ Example:
 				utils.PrintError("Read data timeout")
 				return
 			}
+			// ! stop if no payloads
+			if stopFlag {
+				break
+			}
 			// * continue if recv continueSignal
 			select {
 			case <-continueSignal.Channel():
 				continue
 			default:
 			}
-			// ! both channel are closed
-			if wfp.IsClosed() && tch.IsClosed() {
-				break
-			}
+
+			// if wfp.IsClosed() && tch.IsClosed() {
+			// 	break
+			// }
 			payloadDataCopy := clone.Clone(payloadsData).([]interface{})
 			// * wait for sizedwaitgroup
 			wg.Add()
@@ -396,7 +415,7 @@ Example:
 			finalUrl := utils.Format(url, finalPayloadsData)
 			finalAuth := utils.Format(auth, finalPayloadsData)
 			finalRequestMethod := utils.Format(requestsMethod, finalPayloadsData)
-
+			finalJson := utils.Format(totalJson, finalPayloadsData)
 			finalExpression := utils.Format(expression, finalPayloadsData)
 			finalData := utils.FormatStringArray(clone.Clone(totalData).([]string), finalPayloadsData)
 			finalHeaders := utils.FormatStringArray(clone.Clone(totalHeaders).([]string), finalPayloadsData)
@@ -416,7 +435,7 @@ Example:
 					auth = strings.Split(finalAuth, ":")
 				}
 				resp, err := requests.Requests(finalRequestMethod, finalUrl, map[string][]string{"Headers": finalHeaders, "Cookies": finalCookies, "Data": finalData, "Auth": auth},
-					map[string]interface{}{"UseSession": isUseSession, "ReqTimeout": reqDelayTimeout, "ConnTimeout": connDelayTimeout, "Follow": isFollow, "Json": totalJson})
+					map[string]interface{}{"UseSession": isUseSession, "ReqTimeout": reqDelayTimeout, "ConnTimeout": connDelayTimeout, "Follow": isFollow, "Json": finalJson})
 				if err != nil {
 					if isShowVerbose {
 						utils.PrintErrorWithoutBlank("requests " + finalUrl + " error " + err.Error())
@@ -530,7 +549,7 @@ func init() {
 	rootCmd.Flags().StringP("url", "u", "", "(required) Target URL.")
 	rootCmd.MarkFlagRequired("url")
 	rootCmd.Flags().StringArrayP("data", "d", []string{}, `Use post data (ex: "id=FUZZ&catalogue=1"). Repeat option for various data.`)
-	rootCmd.Flags().String("json", "", `Use json data post. If you use windows, Try to use single quotes instead of double quotes`)
+	rootCmd.Flags().String("json", "", `Use json data post. Use @filepath to read json data from file`)
 	rootCmd.Flags().StringArrayP("header", "H", []string{}, `Use header (ex:"Cookie:id=1312321&user=FUZZ"). Repeat option for various headers.`)
 	rootCmd.Flags().StringArrayP("cookie", "b", []string{}, "Specify a cookie for the requests. Repeat option for various cookies.")
 	rootCmd.Flags().String("auth", "", `in format "user:pass" or "FUZZ:FUZ2Z"`)

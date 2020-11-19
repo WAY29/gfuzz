@@ -16,8 +16,8 @@ func (safech *SafeChannels) Channel() chan T {
 
 func (safech *SafeChannels) IsClosed() bool {
 	select {
-	case <-safech.ch:
-		return true
+	case _, received := <-safech.ch:
+		return !received
 	default:
 	}
 	return false

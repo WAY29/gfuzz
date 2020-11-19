@@ -89,7 +89,7 @@ func Requests(_type string, url string, reqArgs map[string][]string, oArgs map[s
 			_type = "POST"
 		}
 		ro.Headers["Content-Type"] = "application/json"
-		jsonData := strings.ReplaceAll(jsonData.(string), "'", "\"")
+		jsonData := jsonData.(string)
 		ro.JSON = jsonData
 	}
 	// parse auth
